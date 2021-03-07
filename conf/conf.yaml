@@ -1,0 +1,18 @@
+data_root_dir: '/data/'
+tmp_storage: '/tmp_storage/'
+device: 'cuda:0'
+scale: ???
+
+params_file_prefix: 
+  DAMIL: 'DAMIL_params'
+  MSDAMIL: 'MSDAMIL_params'
+
+# hyper_params
+hyper_parameters:
+  sgd:
+    lerning_rate: 0.0001
+    momentum: 0.9
+    weight_decay: 0.0
+  da_rate: 0.0001
+  epochs: 10
+
