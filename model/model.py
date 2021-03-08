@@ -5,7 +5,7 @@ from model.adaptive_grad_reverse_layer import AdaptiveGradReverse
 
 
 class FeatureExtractor(nn.Module):
-    """画像の特徴ベクトルを生成するfeature extoractor"""
+    """Feature extoractor block"""
     def __init__(self):
         super(FeatureExtractor, self).__init__()
         vgg16 = models.vgg16(pretrained=True)
@@ -19,10 +19,10 @@ class FeatureExtractor(nn.Module):
 
 
 class ClassPredictor(nn.Module):
-    """attention機構によるバック単位のクラスの分類を行うクラス識別器"""
+    """Class predictor block to Classify the class of Bag using attention mechanism"""
     def __init__(self):
         super(ClassPredictor, self).__init__()
-        # 次元圧縮
+        # full connect layer
         self.fc_layer = nn.Sequential(
             nn.Linear(in_features=25088, out_features=2048),
             nn.ReLU(),
@@ -52,7 +52,7 @@ class ClassPredictor(nn.Module):
 
 
 class DomainPredictor(nn.Module):
-    """パッチ単位のドメインの分類を行うドメイン識別器"""
+    """Domain predictor block to classify domain of patch images"""
     def __init__(self, domain_num):
         super(DomainPredictor, self).__init__()
         # domein classifier
@@ -71,7 +71,7 @@ class DomainPredictor(nn.Module):
 
 
 class DAMIL(nn.Module):
-    """multiple instance learningとdomain adversarial learningを同時に行うDAMILネットワーク"""
+    """DA-MIL network"""
     def __init__(self, feature_extractor: FeatureExtractor, class_predictor: ClassPredictor, domain_predictor: DomainPredictor):
         super(DAMIL, self).__init__()
         self.feature_extractor = feature_extractor
@@ -80,24 +80,24 @@ class DAMIL(nn.Module):
 
     def forward(self, input, da_rate):
         x = input.squeeze(0)
-        # 特徴抽出
+        # Extoract feature
         features = self.feature_extractor(x)
-        # class分類
+        # predict class of bag
         class_y, attention = self.class_predictor(features)
-        # domain分類
-        adapGR_features = AdaptiveGradReverse.apply(features, da_rate, attention)  # 勾配反転層へ入力
+        # predict domains of patch images
+        adapGR_features = AdaptiveGradReverse.apply(features, da_rate, attention)  # Input AdaptiveGradReverse
         domain_y = self.domain_predictor(adapGR_features)
         return class_y, domain_y, attention
 
 
 class MSDAMIL(nn.Module):
-    """複数倍率を用いたMS-DA-MIL(DA-MILで学習済みのfeature_extoractorを用いる)"""
+    """MS-DA-MIL network"""
     def __init__(self, feature_extractor_scale1: FeatureExtractor, feature_extractor_scale2: FeatureExtractor, class_predictor: ClassPredictor):
         super(MSDAMIL, self).__init__()
         self.feature_extractor_scale1 = feature_extractor_scale1
         self.feature_extractor_scale2 = feature_extractor_scale2
         self.class_predictor = class_predictor
-        # 特徴抽出器の計算グラフは不要(更新なし)
+        # update is not required of feature extoractor
         for param in self.feature_extractor_scale1.parameters():
             param.requires_grad = False
         for param in self.feature_extractor_scale2.parameters():
@@ -106,11 +106,11 @@ class MSDAMIL(nn.Module):
     def forward(self, input_scale1, input_scale2):
         x_scale1 = input_scale1.squeeze(0)
         x_scale2 = input_scale2.squeeze(0)
-        # 各倍率のパッチ画像から特徴抽出
+        # Extoract feature from each magnifications 
         features_1 = self.feature_extractor_scale1(x_scale1)
         features_2 = self.feature_extractor_scale1(x_scale2)
-        # 複数倍率の特徴ベクトルをconcat
+        # Concat
         ms_bag = torch.cat([features_1, features_2], dim=0)
-        # class分類
+        # Predict class of bag
         class_y, attention = self.class_predictor(ms_bag)
         return class_y, attention

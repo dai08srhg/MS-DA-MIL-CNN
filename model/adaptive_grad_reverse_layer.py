@@ -5,13 +5,13 @@
 import torch
 from torch.autograd import Function
 
-'''
-lamda:学習率
-順伝播ではfeature_mapをflatにして伝播
-逆伝播では重みの勾配の符号を反転して伝播
-'''
 
 class AdaptiveGradReverse(Function):
+    """
+    Gradient reverse layer
+    lamda: domain adversarial regularization rate
+    attention: attention weights
+    """
     @staticmethod
     def forward(ctx, x, lamda, attention):
         ctx.lamda = lamda
@@ -20,7 +20,7 @@ class AdaptiveGradReverse(Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        attention = ctx.attention.squeeze(0) # 1次元目削除[1,100] --> [100]
+        attention = ctx.attention.squeeze(0) # [1,100] --> [100]
         max_attention = torch.max(attention)
         adaptive_attention = max_attention-attention
         adaptive_attention = adaptive_attention.unsqueeze(1)
